@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>V-Sync · VoxTek Internal Channel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    :root {
+      --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, Monaco, "Courier New", monospace;
+      --accent: #22d3ee;
+      --accent-pink: #fb37a3;
+      --accent-soft: rgba(56, 189, 248, 0.7);
+      --text-sub: #94a3b8;
+      --border-soft: rgba(148, 163, 184, 0.7);
+      --vox-blue-soft: #60a5fa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-size: 17px;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #101727 0, #05070c 45%, #020309 100%);
+      color: #e9f4ff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 로딩 화면 */
+
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, #0f172a 0, #020617 55%, #000 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 9999;
+      font-family: var(--font-mono);
+      transition: opacity 0.4s ease;
+    }
+
+    .loading-box {
+      border: 1px solid var(--accent-soft);
+      background: rgba(3, 7, 18, 0.9);
+      padding: 2.5rem 3rem;
+      max-width: 480px;
+      width: 90%;
+      box-shadow: 0 0 35px rgba(0, 247, 255, 0.35);
+      border-radius: 0.75rem;
+    }
+
+    .loading-title {
+      font-size: 1.1rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+
+    .loading-line {
+      margin: 0.4rem 0;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .loading-line.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .loading-line .en {
+      display: block;
+    }
+
+    .loading-line .ko {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    .loading-progress {
+      margin-top: 1.2rem;
+      height: 3px;
+      width: 100%;
+      background: #020617;
+      overflow: hidden;
+      border-radius: 999px;
+      border: 1px solid var(--border-soft);
+    }
+
+    .loading-progress-bar {
+      height: 100%;
+      width: 30%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+      animation: loading-scan 1.2s linear infinite;
+    }
+
+    @keyframes loading-scan {
+      0% {
+        transform: translateX(-120%);
+      }
+      100% {
+        transform: translateX(260%);
+      }
+    }
+
+    /* 메인 */
+
+    #app {
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    #app.active {
+      opacity: 1;
+    }
+
+    /* 상단 헤더 */
+
+    .site-header {
+      width: 100%;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(105, 183, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(10px);
+      background: linear-gradient(to right, rgba(4, 9, 20, 0.95), rgba(3, 6, 12, 0.92));
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 30%;
+      border: 1px solid rgba(122, 210, 255, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      text-shadow: 0 0 8px rgba(94, 196, 255, 0.9);
+      box-shadow: 0 0 16px rgba(74, 175, 255, 0.45);
+    }
+
+    .brand-text-main {
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .brand-text-sub {
+      font-size: 11px;
+      opacity: 0.7;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+
+    .nav-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(114, 191, 255, 0.7);
+      padding: 7px 13px;
+      background: rgba(3, 8, 20, 0.8);
+      color: #e9f4ff;
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .nav-btn:hover {
+      box-shadow: 0 0 12px rgba(124, 191, 255, 0.6);
+    }
+
+    .nav-btn.active {
+      background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+      color: #020617;
+      border-color: transparent;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+    }
+
+    /* 메인 레이아웃 */
+
+    .page-content {
+      flex: 1;
+      padding: 24px 18px 34px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .main-wrap {
+      width: 100%;
+      max-width: 880px;
+    }
+
+    .memo-wrapper {
+      background: radial-gradient(circle at top left, #1a2a40 0, #05070c 55%);
+      border: 1px solid rgba(96, 178, 255, 0.45);
+      border-radius: 18px;
+      box-shadow: 0 0 32px rgba(0, 0, 0, 0.65);
+      padding: 24px 22px 26px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .memo-wrapper::before {
+      content: "VOXTEK / INTERNAL CHANNEL";
+      position: absolute;
+      top: 16px;
+      right: -36px;
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      transform: rotate(35deg);
+      opacity: 0.19;
+      padding: 4px 40px;
+      border-top: 1px solid rgba(120, 196, 255, 0.5);
+      border-bottom: 1px solid rgba(120, 196, 255, 0.5);
+    }
+
+    .memo-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .memo-logo-main {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .memo-logo-sub {
+      font-size: 10px;
+      opacity: 0.75;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .memo-chip {
+      border-radius: 999px;
+      border: 1px solid rgba(114, 191, 255, 0.7);
+      padding: 4px 10px;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    .meta-table {
+      margin-top: 4px;
+      margin-bottom: 18px;
+      border-top: 1px solid rgba(138, 204, 255, 0.3);
+      border-bottom: 1px solid rgba(138, 204, 255, 0.3);
+      padding: 8px 0;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+.meta-label {
+  width: 80px;
+  color: #90c4ff;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px !important;
+}
+
+.meta-value {
+  flex: 1;
+  font-size: 16px !important;
+}
+
+    .memo-title {
+      font-size: 19px;
+      font-weight: 650;
+      margin-bottom: 10px;
+    }
+
+    .classification {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9fd0ff;
+      margin-bottom: 16px;
+      opacity: 0.9;
+    }
+
+.memo-body {
+  font-size: 16px;
+  line-height: 1.8;     
+}
+
+
+.memo-body p + p {
+  margin-top: 20px;   
+}
+
+
+    .memo-body strong {
+      color: #aee1ff;
+      font-weight: 600;
+    }
+
+    .signature {
+      margin-top: 24px;
+      border-top: 1px dashed rgba(153, 208, 255, 0.45);
+      padding-top: 14px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .signature-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .signature-role {
+      font-size: 12px;
+      opacity: 0.85;
+    }
+
+    .signature-status {
+      font-size: 11px;
+      color: #8fbfff;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* CREATOR */
+
+    .creator-card {
+      padding-top: 8px;
+    }
+
+    .creator-main {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .creator-main span {
+      color: var(--vox-blue-soft);
+    }
+
+    .creator-sub {
+      font-size: 11px;
+      color: #aaa;
+      line-height: 1.7;
+      margin-top: 6px;
+    }
+
+    /* 푸터 */
+
+    .site-footer {
+      padding: 8px 16px 14px;
+      font-size: 10px;
+      text-align: center;
+      color: rgba(163, 206, 255, 0.7);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+/* 모바일 조정 */
+@media (max-width: 768px) {
+
+  body {
+    font-size: 15px;
+  }
+
+  .nav-btn {
+    font-size: 11px;
+    padding: 5px 10px;
+    letter-spacing: 0.12em;
+  }
+
+  .brand-text-main {
+    font-size: 16px;
+  }
+
+  .brand-text-sub {
+    font-size: 10px;
+  }
+
+  .page-content {
+    padding: 16px 12px 24px;
+  }
+
+  .memo-wrapper {
+    padding: 18px 14px 20px;
+    border-radius: 14px;
+  }
+
+.meta-table {
+  font-size: 16px !important;
+  line-height: 1.6;
+  padding: 10px 0;
+}
+
+
+  .memo-title {
+    font-size: 18px;
+    line-height: 1.3;
+  }
+
+  .classification {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    margin-bottom: 12px;
+  }
+
+  .memo-body {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .memo-body p + p {
+    margin-top: 14px; 
+  }
+
+  .signature {
+    font-size: 12px;
+    line-height: 1.6;
+    margin-top: 18px;
+  }
+
+  .site-footer {
+    font-size: 9px;
+    padding: 6px 10px 10px;
+  }
+}
+
+/* PANEL / CHANNEL */
+.meta-table {
+  font-size: 15px !important; 
+}
+
+/* SIGNAL LOG / READ-ONLY */
+.classification {
+  font-size: 13px !important; 
+  letter-spacing: 0.22em; 
+}
+
+/* CREATOR · V-Sync */
+.memo-title {
+  font-size: 22px !important;
+}
+
+/* Director · V-Sync */
+.creator-main {
+  font-size: 18px !important; 
+}
+
+/* 설명 문구들 (en/ko) */
+.creator-sub {
+  font-size: 14px !important; 
+  line-height: 1.9 !important;
+}
+
+.memo-body .tight-line {
+  line-height: 1.25;  
+}
+
+
+.memo-body .tight-line + .tight-line {
+  margin-top: 4px;  
+}
+
+
+
+
+  </style>
+</head>
+<body>
+
+  <!-- 로딩 화면 -->
+  <div id="loading-screen">
+    <div class="loading-box">
+      <div class="loading-title">V-Sync ACCESS PROTOCOL</div>
+      <div class="loading-line" data-step="0">
+        <span class="en">Scanning User Credentials…</span>
+        <span class="ko">사용자 인증 정보를 스캔하는 중…</span>
+      </div>
+      <div class="loading-line" data-step="1">
+        <span class="en">Verifying Access Level…</span>
+        <span class="ko">접근 권한을 검증하는 중…</span>
+      </div>
+      <div class="loading-line" data-step="2">
+        <span class="en">All Checks Passed.</span>
+        <span class="ko">모든 체크 통과.</span>
+      </div>
+      <div class="loading-line" data-step="3">
+        <span class="en">…Clear. Access Granted.</span>
+        <span class="ko">…클리어. 접근 승인.</span>
+      </div>
+      <div class="loading-progress">
+        <div class="loading-progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메인 앱 -->
+  <div id="app">
+    <!-- HEADER -->
+    <header class="site-header">
+      <div class="brand">
+        <div class="brand-mark">V</div>
+        <div>
+          <div class="brand-text-main">V-Sync</div>
+          <div class="brand-text-sub">VOXTEK INTERNAL CHANNEL</div>
+        </div>
+      </div>
+      <div class="top-controls">
+        <button class="nav-btn lang-btn active" data-lang="ko">한국어</button>
+        <button class="nav-btn lang-btn" data-lang="en">English</button>
+        <button class="nav-btn" id="creator-btn">CREATOR</button>
+        <button class="nav-btn" id="sound-toggle" data-sound="off">Sound OFF</button>
+      </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="page-content">
+      <div class="main-wrap">
+        <section class="memo-wrapper">
+          <div class="memo-header-top">
+            <div>
+              <div class="memo-logo-main">VOXTEK</div>
+              <div class="memo-logo-sub">INTERNAL MEMORANDUM</div>
+            </div>
+            <div class="memo-chip">CORPORATE STATEMENT</div>
+          </div>
+
+          <!-- 메일 뷰 -->
+          <div id="view-memo">
+            <!-- 한국어 메모 -->
+            <section id="memo-ko" class="memo-section">
+              <div class="meta-table">
+                <div class="meta-row">
+                  <div class="meta-label">제목</div>
+                  <div class="meta-value">경영 체계 관련 공지 및 향후 비전 제시</div>
+                </div>
+                <div class="meta-row" style="margin-top:4px;">
+                  <div class="meta-label">수신</div>
+                  <div class="meta-value">VoxTek 전 부서 · 전 직원</div>
+                </div>
+                <div class="meta-row" style="margin-top:4px;">
+                  <div class="meta-label">발신</div>
+                  <div class="meta-value">Vox · 前 CEO</div>
+                </div>
+                <div class="meta-row" style="margin-top:4px;">
+                  <div class="meta-label">등급</div>
+                  <div class="meta-value">내부 기밀 문서 (V-CLEARANCE)</div>
+                </div>
+              </div>
+
+              <h1 class="memo-title">VoxTek 경영 체계 관련 안내 및 향후 운영 방향</h1>
+              <div class="classification">
+                CLASSIFICATION: V-CLEARANCE · DO NOT DISTRIBUTE EXTERNALLY
+              </div>
+
+              <div class="memo-body">
+                <p>팀 여러분께.</p>
+
+                <p class="tight-line">
+                  최근 경영권 변동과 그에 따른 혼란 속에서 여러분이 느끼셨을
+                  걱정과 우려를 잘 알고 있습니다.
+                </p>
+                <p class="tight-line">
+                  우선, 제 판단 미스로 인해
+                  회사 내부와 대외적으로 불필요한 리스크가 발생한 점에 대해
+                  <strong>공식적으로 사과드립니다.</strong>
+                </p>
+                <p>다만 분명히 말씀드리겠습니다.</p>
+
+                <p>
+                  저는 VoxTek를 단순한 지옥의 기업이 아닌,
+                  <strong>기술·방송·권력의 중심축</strong>으로 끌어올리기 위해
+                  그 누구보다 치열하게 경쟁하고 분투해왔습니다. 여러분 또한 그
+                  과정과 성과를 누구보다 잘 알고 계시리라 믿습니다.
+                </p>
+
+                <p>
+                  현 경영진 역시 영향력과 능력을 갖춘 인물임을 부정할 생각은
+                  없습니다. 그러나 기업이 장기적으로 성장하기 위해 필요한 것은
+                  단순한 지배력이나 화려함이 아니라,
+                  <strong>명확한 비전·혁신 전략·지옥 전체를 견인할 수 있는
+                    체계적 구상</strong>입니다.
+                </p>
+
+                <p>
+                  저는 그 비전을 가지고 있습니다. 그리고 VoxTek를 다시금 도약하게
+                  만들 준비 역시 끝마친 상태입니다.
+                </p>
+
+                <p class="tight-line">
+                  현재 저는 내부적으로 제 시스템과 전략을 재정비하고 있으며,
+                  <strong>경영 복귀를 위한 절차</strong> 또한 진행 중입니다.
+                </p>
+                <p class="tight-line">
+                  저는 <strong>책임을 회피하지도, 성장을 포기하지도 않을 것</strong>
+                  입니다.
+                </p>
+                 <p>
+                 </p>
+                <p class="tight-line">
+                  VoxTek는 태생적으로 '확장'과 '진화'를 기반으로 하는 기업입니다.
+                </p>
+                <p class="tight-line">
+                  그 중심에는 언제나 <strong>VoxTek의 정체성을 만든 사람</strong>,
+                  즉 <strong>저, Vox</strong>가 있었습니다.
+                </p>
+                 <p>
+                </p>
+                <p class="tight-line">
+                  향후 회사의 정상화를 포함한 운영 방향은 추가적인 내부 검토 후
+                  다시 공지하겠습니다.
+                </p>
+                <p class="tight-line">
+                  여러분께서는 현재 체제 아래에서 업무를
+                  지속하되, <strong>회사의 본래 비전과 방향이 무엇이었는지</strong>
+                  잊지 않으시길 바랍니다.
+
+                </p>
+                <div class="signature">
+                  <div class="signature-name">— Vox</div>
+                  <div class="signature-role">Founder / Former CEO · VoxTek</div>
+                  <div class="signature-status">
+                    STATUS: STRATEGIC REORGANIZATION IN PROGRESS
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- 영어 메모 -->
+            <section id="memo-en" class="memo-section" style="display:none;">
+              <div class="meta-table">
+                <div class="meta-row">
+                  <div class="meta-label">Subject</div>
+                  <div class="meta-value">
+                    Leadership Structure Update &amp; Future Vision
+                  </div>
+                </div>
+                <div class="meta-row" style="margin-top:4px;">
+                  <div class="meta-label">To</div>
+                  <div class="meta-value">
+                    All VoxTek Departments &amp; Staff
+                  </div>
+                </div>
+                <div class="meta-row" style="margin-top:4px;">
+                  <div class="meta-label">From</div>
+                  <div class="meta-value">Vox · Former CEO</div>
+                </div>
+                <div class="meta-row" style="margin-top:4px;">
+                  <div class="meta-label">Level</div>
+                  <div class="meta-value">Internal Use Only (V-CLEARANCE)</div>
+                </div>
+              </div>
+
+              <h1 class="memo-title">
+                Notice on Current Leadership Structure and Future Vision
+              </h1>
+              <div class="classification">
+                CLASSIFICATION: V-CLEARANCE · DO NOT DISTRIBUTE EXTERNALLY
+              </div>
+
+              <div class="memo-body">
+                <p>Team,</p>
+
+                <p>
+                  In light of the recent changes in leadership and the disruption that
+                  followed, I am fully aware of the concerns and uncertainty many of you
+                  may have felt. First and foremost, certain misjudgments on my part
+                  resulted in unnecessary risks—both internally and externally.
+                  For that, I extend my formal apology.
+                </p>
+
+                <p>That being said, let me be perfectly clear.</p>
+
+                <p>
+                  I have dedicated myself to elevating VoxTek beyond a mere company in Hell—
+                  into a <strong>centerpiece of technology, broadcasting, and power.</strong>
+                  No one has fought harder or invested more deeply in that vision than I have,
+                  and many of you have witnessed that journey firsthand.
+                </p>
+
+                <p>
+                  While the current leadership undeniably possesses influence and capability,
+                  long-term growth demands more than charisma or domination.
+                  It requires a <strong>defined vision, strategic innovation, and a framework
+                  capable of steering Hell’s future.</strong>
+                </p>
+
+                <p>
+                  And that vision is one I have always carried. I am currently restructuring
+                  my systems and preparing the necessary steps for my eventual return to
+                  leadership. I will not evade responsibility, nor will I abandon VoxTek’s
+                  progression.
+                </p>
+
+                <p>
+                  VoxTek was built on the principles of expansion and evolution. At the center
+                  of those principles has always been <strong>the individual who established
+                  the company’s very identity—me. Vox.</strong>
+                </p>
+
+                <p>
+                  Further details on operational direction and corporate stabilization will be
+                  shared following additional internal review. In the meantime, continue your
+                  work under the current system, but do not lose sight of
+                  <strong>the original vision that defined VoxTek.</strong>
+                </p>
+
+                <div class="signature">
+                  <div class="signature-name">— Vox</div>
+                  <div class="signature-role">Founder / Former CEO · VoxTek</div>
+                  <div class="signature-status">
+                    STATUS: STRATEGIC REORGANIZATION IN PROGRESS
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- CREATOR 뷰 -->
+          <div id="view-creator" style="display:none;">
+            <div class="meta-table">
+              <div class="meta-row">
+                <div class="meta-label">Panel</div>
+                <div class="meta-value">CREATOR</div>
+              </div>
+              <div class="meta-row" style="margin-top:4px;">
+                <div class="meta-label">Channel</div>
+                <div class="meta-value">V-Sync System Profile</div>
+              </div>
+            </div>
+
+            <h1 class="memo-title">CREATOR · V-Sync</h1>
+            <div class="classification">
+              SIGNAL LOG: CREATOR PROFILE · READ-ONLY
+            </div>
+
+            <div class="memo-body">
+              <div class="creator-card">
+                <div class="creator-main">
+                  🕶 Director · <span>V-Sync</span>
+                </div>
+                <div class="creator-sub">
+                  ── 「 Interest in the signal architect detected. 」<br>
+                  ── 「 신호 설계자에 대한 관심 신호 감지. 」<br><br>
+                  ── 「 Acknowledgment signal transmitted. Thank you. 」<br>
+                  ── 「 확인 응답 전송 완료. 감사합니다. 」
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      V-SYNC · VOXTEK INTERNAL CHANNEL · ACCESS LEVEL V-CLEARANCE
+    </footer>
+
+    <!-- BGM -->
+    <audio id="bg-audio" src="Falling.mp3" loop></audio>
+  </div>
+
+  <script>
+    // 언어 / CREATOR 전환 및 사운드 토글
+
+    const langButtons = document.querySelectorAll(".lang-btn");
+    const creatorBtn = document.getElementById("creator-btn");
+    const memoKo = document.getElementById("memo-ko");
+    const memoEn = document.getElementById("memo-en");
+    const viewMemo = document.getElementById("view-memo");
+    const viewCreator = document.getElementById("view-creator");
+    const soundToggle = document.getElementById("sound-toggle");
+    const bgAudio = document.getElementById("bg-audio");
+
+    function setActiveButton(btn) {
+      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+    }
+
+    langButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const lang = btn.dataset.lang;
+        setActiveButton(btn);
+        viewCreator.style.display = "none";
+        viewMemo.style.display = "block";
+
+        if (lang === "ko") {
+          memoKo.style.display = "block";
+          memoEn.style.display = "none";
+        } else {
+          memoKo.style.display = "none";
+          memoEn.style.display = "block";
+        }
+      });
+    });
+
+    creatorBtn.addEventListener("click", () => {
+      setActiveButton(creatorBtn);
+      viewMemo.style.display = "none";
+      viewCreator.style.display = "block";
+    });
+
+    soundToggle.addEventListener("click", async () => {
+      const state = soundToggle.dataset.sound;
+      if (state === "off") {
+        try {
+          await bgAudio.play();
+          soundToggle.dataset.sound = "on";
+          soundToggle.textContent = "Sound ON";
+        } catch (e) {
+          console.warn("Autoplay blocked:", e);
+        }
+      } else {
+        bgAudio.pause();
+        bgAudio.currentTime = 0;
+        soundToggle.dataset.sound = "off";
+        soundToggle.textContent = "Sound OFF";
+      }
+    });
+
+    // 기본값: 한국어 메모 보이기
+    memoKo.style.display = "block";
+    memoEn.style.display = "none";
+  </script>
+
+  <script>
+    /* 로딩 */
+    (function () {
+      const lines = document.querySelectorAll(".loading-line");
+      const loadingScreen = document.getElementById("loading-screen");
+      const app = document.getElementById("app");
+      let step = 0;
+
+      function showStep() {
+        if (step < lines.length) {
+          lines[step].classList.add("active");
+          step++;
+          // 각 줄 사이 900ms (원본 파일과 동일)
+          setTimeout(showStep, 900);
+        } else {
+          // 마지막 문구까지 다 나온 후 900ms 대기 후 페이드아웃
+          setTimeout(() => {
+            if (loadingScreen) {
+              loadingScreen.style.opacity = "0";
+              loadingScreen.style.pointerEvents = "none";
+              setTimeout(() => {
+                loadingScreen.style.display = "none";
+                if (app) app.classList.add("active");
+              }, 400); // 페이드아웃 시간
+            } else {
+              if (app) app.classList.add("active");
+            }
+          }, 900);
+        }
+      }
+
+      if (lines.length && loadingScreen && app) {
+        showStep();
+      } else {
+        // 혹시 로딩 구조가 없으면 바로 앱 표시
+        if (app) app.classList.add("active");
+      }
+    })();
+  </script>
+</body>
+</html>
+
